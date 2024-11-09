@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TMDB Video Player with Plyr and HLS</title>
+    <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css">
+    <style>
+        :root {
+            --plyr-font-family: 'Avenir', 'Helvetica Neue', Arial, sans-serif;
+            --plyr-font-size-base: 16px;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 20px auto;
+        }
+        
+        #player {
+            width: 100%;
+            aspect-ratio: 16 / 9;
+        }
+
+        #searchResults {
+            list-style-type: none;
+            padding: 0;
+            max-height: 300px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+        }
+
+        #searchResults li {
+            cursor: pointer;
+            padding: 10px;
+            border-bottom: 1px solid #ddd;
+        }
+
+        #searchResults li:hover {
+            background-color: #f0f0f0;
+        }
+
+        #seasonEpisode, #sourceSelector {
+            display: none;
+            margin-top: 10px;
+        }
+
+        .result-item {
+            display: flex;
+            align-items: center;
+        }
+
+        .result-item img {
+            width: 50px;
+            margin-right: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>TMDB Video Player</h1>
+        <input type="text" id="searchInput" placeholder="Search for a movie or TV show">
+        <ul id="searchResults"></ul>
+        <div id="seasonEpisode">
+            <input type="number" id="season" placeholder="Season">
+            <input type="number" id="episode" placeholder="Episode">
+            <button onclick="loadSelectedVideo()">Load Episode</button>
+        </div>
+        <div id="sourceSelector">
+            <select id="sourceSelect"></select>
+            <button onclick="changeSource()">Change Source</button>
+        </div>
+        <br><br>
+        <video id="player" controls crossorigin playsinline>
+            <!-- Sources will be dynamically added here -->
+        </video>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    <script src="https://cdn.plyr.io/3.7.8/plyr.js"></script>
+    <script>
+        let player;
+        let selectedItem;
+        let currentSources = [];
+        const tmdbToken = 'eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiJlYjJlNWIwZGIzZjVjOGIxZDMxNWZjNzlhZWZlZTJmZSIsIm5iZiI6MTczMDk5NDE4My40NTYyMTkyLCJzdWIiOiI2NjI2NWM3YjE5N2RlNDAxNjQyYjBmOGEiLCJzY29wZXMiOlsiYXBpX3JlYWQiXSwidmVyc2lvbiI6MX0.3tGbp1Q5trJl5O5HGtjuztaoxMw4C1_TL0EBL59k6io';
+
+        document.addEventListener('DOMContentLoaded', function() {
+            initPlyr(document.getElementById('player'));
+        });
+
+        document.getElementById('searchInput').addEventListener('input', debounce(searchTMDB, 300));
+
+        function debounce(func, wait) {
+            let timeout;
+            return function executedFunction(...args) {
+                const later = () => {
+                    clearTimeout(timeout);
+                    func(...args);
+                };
+                clearTimeout(timeout);
+                timeout = setTimeout(later, wait);
+            };
+        }
+
+        async function searchTMDB() {
+            const query = document.getElementById('searchInput').value;
+            if (query.length < 2) return;
+
+            const url = `https://api.themoviedb.org/3/search/multi?query=${encodeURIComponent(query)}`;
+            
+            try {
+                const response = await fetch(url, {
+                    headers: {
+                        'Authorization': `Bearer ${tmdbToken}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                const data = await response.json();
+                displayResults(data.results);
+            } catch (error) {
+                console.error('Error searching TMDB:', error);
+            }
+        }
+
+        function displayResults(results) {
+            const resultsList = document.getElementById('searchResults');
+            resultsList.innerHTML = '';
+            results.forEach(item => {
+                if (item.media_type === 'movie' || item.media_type === 'tv') {
+                    const li = document.createElement('li');
+                    li.innerHTML = `
+                        <div class="result-item">
+                            <img src="https://image.tmdb.org/t/p/w92${item.poster_path || '/no-poster.jpg'}" alt="${item.title || item.name}">
+                            <span>${item.title || item.name} (${item.media_type.toUpperCase()})</span>
+                        </div>
+                    `;
+                    li.onclick = () => selectItem(item);
+                    resultsList.appendChild(li);
+                }
+            });
+        }
+
+        function selectItem(item) {
+            selectedItem = item;
+            const seasonEpisode = document.getElementById('seasonEpisode');
+            const sourceSelector = document.getElementById('sourceSelector');
+            
+            updatePoster(item.backdrop_path || item.poster_path);
+            
+            if (item.media_type === 'tv') {
+                seasonEpisode.style.display = 'block';
+                sourceSelector.style.display = 'none';
+            } else {
+                seasonEpisode.style.display = 'none';
+                loadVideo(item.id, item.media_type);
+            }
+        }
+
+        function updatePoster(imagePath) {
+            const playerElement = document.getElementById('player');
+            if (imagePath) {
+                playerElement.poster = `https://image.tmdb.org/t/p/original${imagePath}`;
+            } else {
+                playerElement.poster = 'https://cdn.plyr.io/static/demo/View_From_A_Blue_Moon_Trailer-HD.jpg';
+            }
+            if (player) {
+                player.poster = playerElement.poster;
+            }
+        }
+
+        function loadSelectedVideo() {
+            if (selectedItem && selectedItem.media_type === 'tv') {
+                const season = document.getElementById('season').value;
+                const episode = document.getElementById('episode').value;
+                if (season && episode) {
+                    loadVideo(selectedItem.id, selectedItem.media_type, season, episode);
+                } else {
+                    alert('Please enter both season and episode numbers.');
+                }
+            }
+        }
+
+        async function loadVideo(id, mediaType, season = null, episode = null) {
+            let url = `https://vidsrc-api-js-gold.vercel.app/vidsrc/${id}`;
+            if (mediaType === 'tv' && season && episode) {
+                url += `?s=${season}&e=${episode}`;
+            }
+
+            try {
+                const response = await fetch(url);
+                const data = await response.json();
+                currentSources = data.sources;
+
+                if (currentSources && currentSources.length > 0) {
+                    updateSourceSelector();
+                    loadSource(currentSources[0]);
+
+                    const englishSubtitle = data.subtitles.find(sub => sub.lang === "English");
+                    if (englishSubtitle) {
+                        const track = document.createElement('track');
+                        track.kind = 'captions';
+                        track.label = 'English';
+                        track.srclang = 'en';
+                        track.src = englishSubtitle.url;
+                        track.default = true;
+                        player.media.appendChild(track);
+                    }
+
+                    document.getElementById('sourceSelector').style.display = 'block';
+                } else {
+                    console.error('No sources available for this video');
+                    alert('No sources available for this video. Please try another selection.');
+                }
+            } catch (error) {
+                console.error('Error loading video:', error);
+                alert('Error loading video. Please try another selection.');
+            }
+        }
+
+        function updateSourceSelector() {
+            const sourceSelect = document.getElementById('sourceSelect');
+            sourceSelect.innerHTML = '';
+            currentSources.forEach((source, index) => {
+                const option = document.createElement('option');
+                option.value = index;
+                option.textContent = `Source ${index + 1} (${source.quality})`;
+                sourceSelect.appendChild(option);
+            });
+        }
+
+        function changeSource() {
+            const sourceIndex = document.getElementById('sourceSelect').value;
+            if (currentSources[sourceIndex]) {
+                loadSource(currentSources[sourceIndex]);
+            } else {
+                console.error('Invalid source selected');
+            }
+        }
+
+        function loadSource(source) {
+            const video = player.media;
+            video.src = '';
+            if (Hls.isSupported()) {
+                const hls = new Hls();
+                hls.loadSource(source.url);
+                hls.attachMedia(video);
+                hls.on(Hls.Events.MANIFEST_PARSED, function() {
+                    video.play();
+                });
+            } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                video.src = source.url;
+                video.addEventListener('loadedmetadata', function() {
+                    video.play();
+                });
+            } else {
+                console.error('HLS is not supported on this browser');
+            }
+        }
+
+        function initPlyr(video) {
+            if (player) {
+                player.destroy();
+            }
+
+            player = new Plyr(video, {
+                captions: { active: true, update: true, language: 'en' },
+                controls: [
+                    'play-large', 'play', 'progress', 'current-time', 'mute', 
+                    'volume', 'captions', 'settings', 'pip', 'airplay', 'fullscreen'
+                ]
+            });
+
+            player.on('languagechange', () => {
+                setTimeout(() => {
+                    if (player.hls) {
+                        player.hls.subtitleTrack = player.currentTrack;
+                    }
+                }, 50);
+            });
+
+            window.player = player;
+        }
+    </script>
+</body>
+</html>
