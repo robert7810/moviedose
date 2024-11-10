@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Plyr with HLS Multi-Quality Support</title>
+    
+    <!-- Latest Plyr CSS -->
+    <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css">
+
+    <!-- Custom font -->
+    <style>
+        @font-face {
+            font-family: 'Gordita';
+            src: url('https://cdn.plyr.io/static/fonts/gordita-medium.woff2') format('woff2');
+            font-weight: normal;
+            font-style: normal;
+        }
+        
+        /* Apply the font to the player */
+        .plyr {
+            font-family: 'Gordita', sans-serif;
+        }
+    </style>
+</head>
+<body>
+    
+    <!-- Video Player -->
+    <video id="player" controls crossorigin playsinline></video>
+
+    <!-- Latest Plyr JS -->
+    <script src="https://cdn.plyr.io/3.7.8/plyr.js"></script>
+    <!-- HLS.js -->
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+
+    <script>
+        // Initialize Plyr
+        const player = new Plyr('#player', {
+            fullscreen: {
+                iosNative: true // Enable native fullscreen on iOS
+            },
+            quality: {
+                default: 720, // Set the default quality
+                options: [1080, 720, 480, 360, 240], // Set available quality options (these will only display if the stream supports them)
+            }
+        });
+
+        // HLS setup
+        if (Hls.isSupported()) {
+            const hls = new Hls();
+            hls.loadSource('https://florvexlight23.xyz/file1/i9M4GaXQCZ7~~CKea~e+2KT+vFKg5kZcelk1u65MzTQCOWbqeTlRsH5qc2SdENbVDV5~MFkUCpqPeQp4ahwMjRO3FphBqAoNpYbDIN9WUK1VS3V6gWxLdxSUU~8J84Z4asSRQzaHnXOKz0BWl8t5haEwB59loh9MPOCYbXkXJc8=/cGxheWxpc3QubTN1OA==.m3u8');
+            hls.attachMedia(player.media);
+
+            // Listen for quality levels and populate Plyr's quality options
+            hls.on(Hls.Events.MANIFEST_PARSED, function(event, data) {
+                const availableQualities = hls.levels.map(level => level.height);
+                player.quality.options = availableQualities;
+                player.play();
+            });
+
+            // Listen to Plyr quality change events and update HLS quality
+            player.on('qualitychange', event => {
+                const newQuality = event.detail.quality;
+                hls.levels.forEach((level, levelIndex) => {
+                    if (level.height === newQuality) {
+                        hls.currentLevel = levelIndex;
+                    }
+                });
+            });
+        } else if (player.media.canPlayType('application/vnd.apple.mpegurl')) {
+            // Native HLS support for Safari
+            player.media.src = 'https://florvexlight23.xyz/file1/i9M4GaXQCZ7~~CKea~e+2KT+vFKg5kZcelk1u65MzTQCOWbqeTlRsH5qc2SdENbVDV5~MFkUCpqPeQp4ahwMjRO3FphBqAoNpYbDIN9WUK1VS3V6gWxLdxSUU~8J84Z4asSRQzaHnXOKz0BWl8t5haEwB59loh9MPOCYbXkXJc8=/cGxheWxpc3QubTN1OA==.m3u8';
+        }
+    </script>
+</body>
+</html>
