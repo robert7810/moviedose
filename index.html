@@ -142,143 +142,126 @@
         function selectItem(item) {
             selectedItem = item;
             const seasonEpisode = document.getElementById('seasonEpisode');
-            const sourceSelector = document.getElementById('sourceSelector');
             
             updatePoster(item.backdrop_path || item.poster_path);
             
             if (item.media_type === 'tv') {
                 seasonEpisode.style.display = 'block';
-                sourceSelector.style.display = 'none';
+                document.getElementById('sourceSelector').style.display = 'none';
+                loadVideo(item.id, item.media_type);
             } else {
                 seasonEpisode.style.display = 'none';
                 loadVideo(item.id, item.media_type);
+                document.getElementById('sourceSelector').style.display = 'block';
+                updateSourceSelector();
             }
-        }
+            
+       }
 
-        function updatePoster(imagePath) {
-            const playerElement = document.getElementById('player');
-            if (imagePath) {
-                playerElement.poster = `https://image.tmdb.org/t/p/original${imagePath}`;
-            } else {
-                playerElement.poster = 'https://cdn.plyr.io/static/demo/View_From_A_Blue_Moon_Trailer-HD.jpg';
-            }
-            if (player) {
-                player.poster = playerElement.poster;
-            }
-        }
+       function updatePoster(imagePath) { 
+           const playerElement =
+           document.getElementById('player'); if
+           (imagePath) { playerElement.poster =
+           `https://image.tmdb.org/t/p/original${imagePath}`; player.load(); // Ensure the poster updates } else { playerElement.poster =
+           'https://cdn.plyr.io/static/demo/View_From_A_Blue_Moon_Trailer-HD.jpg'; player.load(); // Ensure the poster updates } 
 
-        function loadSelectedVideo() {
-            if (selectedItem && selectedItem.media_type === 'tv') {
-                const season = document.getElementById('season').value;
-                const episode = document.getElementById('episode').value;
-                if (season && episode) {
-                    loadVideo(selectedItem.id, selectedItem.media_type, season, episode);
-                } else {
-                    alert('Please enter both season and episode numbers.');
-                }
-            }
-        }
+           if (player) { 
+               player.poster =
+               playerElement.poster; 
+           } 
+       } 
 
-        async function loadVideo(id, mediaType, season = null, episode = null) {
-            let url = `https://vidsrc-api-js-gold.vercel.app/vidsrc/${id}`;
-            if (mediaType === 'tv' && season && episode) {
-                url += `?s=${season}&e=${episode}`;
-            }
+       function loadSelectedVideo() { 
+           if
+           (selectedItem && selectedItem.media_type === 'tv') { 
+               const season =
+               document.getElementById('season').value; 
+               const episode =
+               document.getElementById('episode').value; 
+               if (season && episode) { 
+                   loadVideo(selectedItem.id, selectedItem.media_type, season, episode); 
+               } else { 
+                   alert('Please enter both season and episode numbers.'); 
+               } 
+           } 
+       } 
 
-            try {
-                const response = await fetch(url);
-                const data = await response.json();
-                currentSources = data.sources;
+       async function loadVideo(id, mediaType, season =
+           null, episode =
+           null) { let url =
+           `https://vidsrc-api-js-gold.vercel.app/vidsrc/${id}`; if
+           (mediaType === 'tv' && season && episode) { url +=
+           `?s=${season}&e=${episode}`; } 
 
-                if (currentSources && currentSources.length > 0) {
-                    updateSourceSelector();
-                    loadSource(currentSources[0]);
+           try { const response =
+           await fetch(url); const data =
+           await response.json(); currentSources =
+           data.sources; 
 
-                    const englishSubtitle = data.subtitles.find(sub => sub.lang === "English");
-                    if (englishSubtitle) {
-                        const track = document.createElement('track');
-                        track.kind = 'captions';
-                        track.label = 'English';
-                        track.srclang = 'en';
-                        track.src = englishSubtitle.url;
-                        track.default = true;
-                        player.media.appendChild(track);
-                    }
+           if (currentSources && currentSources.length > 0) { updateSourceSelector(); loadSource(currentSources[0]); 
 
-                    document.getElementById('sourceSelector').style.display = 'block';
-                } else {
-                    console.error('No sources available for this video');
-                    alert('No sources available for this video. Please try another selection.');
-                }
-            } catch (error) {
-                console.error('Error loading video:', error);
-                alert('Error loading video. Please try another selection.');
-            }
-        }
+               const englishSubtitle =
+               data.subtitles.find(sub => sub.lang === "English"); if
+               (englishSubtitle) { const track =
+               document.createElement('track'); track.kind =
+               'captions'; track.label =
+               'English'; track.srclang =
+               'en'; track.src =
+               englishSubtitle.url; track.default =
+               true; player.media.appendChild(track); } 
 
-        function updateSourceSelector() {
-            const sourceSelect = document.getElementById('sourceSelect');
-            sourceSelect.innerHTML = '';
-            currentSources.forEach((source, index) => {
-                const option = document.createElement('option');
-                option.value = index;
-                option.textContent = `Source ${index + 1} (${source.quality})`;
-                sourceSelect.appendChild(option);
-            });
-        }
+               document.getElementById('sourceSelector').style.display =
+               'block'; } else { console.error('No sources available for this video'); alert('No sources available for this video. Please try another selection.'); } } catch (error)
+           { console.error('Error loading video:', error); alert('Error loading video. Please try another selection.'); } } 
 
-        function changeSource() {
-            const sourceIndex = document.getElementById('sourceSelect').value;
-            if (currentSources[sourceIndex]) {
-                loadSource(currentSources[sourceIndex]);
-            } else {
-                console.error('Invalid source selected');
-            }
-        }
+       function updateSourceSelector() { const sourceSelect
+       = document.getElementById('sourceSelect'); sourceSelect.innerHTML
+       = ''; currentSources.forEach((source, index)
+       => { const option
+       = document.createElement('option'); option.value
+       = index; option.textContent
+       = `Source ${index + 1} (${source.quality})`; sourceSelect.appendChild(option); }); } 
 
-        function loadSource(source) {
-            const video = player.media;
-            video.src = '';
-            if (Hls.isSupported()) {
-                const hls = new Hls();
-                hls.loadSource(source.url);
-                hls.attachMedia(video);
-                hls.on(Hls.Events.MANIFEST_PARSED, function() {
-                    video.play();
-                });
-            } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-                video.src = source.url;
-                video.addEventListener('loadedmetadata', function() {
-                    video.play();
-                });
-            } else {
-                console.error('HLS is not supported on this browser');
-            }
-        }
+       function changeSource() { const sourceIndex
+       = document.getElementById('sourceSelect').value; if
+       (currentSources[sourceIndex]) { loadSource(currentSources[sourceIndex]); } else
+       { console.error('Invalid source selected'); } } 
 
-        function initPlyr(video) {
-            if (player) {
-                player.destroy();
-            }
+       function loadSource(source) { const video
+       = player.media; video.src
+       = ''; if (Hls.isSupported()) { const hls
+       = new Hls(); hls.loadSource(source.url); hls.attachMedia(video); hls.on(Hls.Events.MANIFEST_PARSED,
+       function() { video.play(); }); } else
+       if (video.canPlayType('application/vnd.apple.mpegurl')) { video.src
+       = source.url; video.addEventListener('loadedmetadata',
+       function() { video.play(); }); } else
+       { console.error('HLS is not supported on this browser'); } } 
 
-            player = new Plyr(video, {
-                captions: { active: true, update: true, language: 'en' },
-                controls: [
-                    'play-large', 'play', 'progress', 'current-time', 'mute', 
-                    'volume', 'captions', 'settings', 'pip', 'airplay', 'fullscreen'
-                ]
-            });
+       function initPlyr(video) { if
+       (player) { player.destroy(); } 
 
-            player.on('languagechange', () => {
-                setTimeout(() => {
-                    if (player.hls) {
-                        player.hls.subtitleTrack = player.currentTrack;
-                    }
-                }, 50);
-            });
+       player =
+           new Plyr(video, { captions:
+       { active:
+       true, update:
+       true, language:
+       'en' }, controls:
+       [ 'play-large', 'play', 'progress', 'current-time', 'mute',
+       'volume', 'captions', 'settings', 'pip', 'airplay',
+       'fullscreen' ], fullscreen:
+   { iosNative:
+   true }, }); 
 
-            window.player = player;
-        }
-    </script>
-</body>
-</html>
+   player.on('languagechange',
+   () => { setTimeout(() => { if
+   (player.hls) { player.hls.subtitleTrack =
+   player.currentTrack; } }, 50); }); 
+
+   window.player =
+   player; } 
+
+</script> 
+
+</body> 
+
+</html> 
