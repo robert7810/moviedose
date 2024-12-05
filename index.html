@@ -180,7 +180,7 @@
         }
 
         async function loadVideo(id, mediaType, season = null, episode = null) {
-            let url = `https://vidsrc-api-js-gold.vercel.app/vidsrc/${id}`;
+            let url = `https://vidsrc-api-js-b620.onrender.com/vidsrc/${id}`;
             if (mediaType === 'tv' && season && episode) {
                 url += `?s=${season}&e=${episode}`;
             }
